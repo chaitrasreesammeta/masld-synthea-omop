@@ -1,0 +1,12 @@
+# generated / large / local
+out/
+modules/
+omop/omop.duckdb
+omop/omop.duckdb.wal
+omop/.venv/
+omop/results_prev/
+*.jar
+run.log
+__pycache__/
+.DS_Store
+omop/vocab_cache/

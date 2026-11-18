@@ -1,0 +1,7 @@
+sex,age_group,active_adults,at_risk,pct_at_risk,fib4_missing,fib4_low,fib4_indeterminate,fib4_high
+Female,18-39,35,2,5.7,0,2,0,0
+Female,40-64,83,25,30.1,0,18,4,3
+Female,65+,38,22,57.9,0,17,2,3
+Male,18-39,34,1,2.9,0,1,0,0
+Male,40-64,74,21,28.4,0,13,4,4
+Male,65+,43,32,74.4,0,23,4,5

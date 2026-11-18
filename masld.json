@@ -1,0 +1,2029 @@
+{
+  "name": "MASLD",
+  "remarks": [
+    "Synthetic MASLD module for testing MASLD queries and automated coding. Built for PLHI Lab testing; not clinically validated.",
+    "v2: onset eligibility age 35; lab ranges vary by age group (<50, 50-64, 65+) so FIB-4 lands in the intended band; progression 2% per follow-up. Original kept as masld_v1.json."
+  ],
+  "gmf_version": 2,
+  "states": {
+    "Initial": {
+      "type": "Initial",
+      "remarks": [
+        "MASLD (metabolic dysfunction-associated steatotic liver disease) module for synthetic testing.",
+        "Adults with cardiometabolic risk factors (T2DM, obesity, hypertension) get a higher chance of MASLD.",
+        "Each patient is assigned a fibrosis band (low / indeterminate / high / cirrhosis). Lab ranges for AST, ALT and platelets",
+        "are set so the FIB-4 score usually falls in the matching band, giving test cases for FIB-4 risk stratification.",
+        "Prevalence and stage splits are rough approximations for testing, not calibrated epidemiology."
+      ],
+      "direct_transition": "Wait_Until_Adult"
+    },
+    "Wait_Until_Adult": {
+      "type": "Guard",
+      "allow": {
+        "condition_type": "Age",
+        "operator": ">=",
+        "quantity": 35,
+        "unit": "years"
+      },
+      "direct_transition": "Onset_Delay"
+    },
+    "Onset_Delay": {
+      "type": "Delay",
+      "range": {
+        "low": 0,
+        "high": 30,
+        "unit": "years"
+      },
+      "direct_transition": "Risk_Check"
+    },
+    "Risk_Check": {
+      "type": "Simple",
+      "complex_transition": [
+        {
+          "condition": {
+            "condition_type": "Or",
+            "conditions": [
+              {
+                "condition_type": "Attribute",
+                "attribute": "diabetes",
+                "operator": "==",
+                "value": true
+              },
+              {
+                "condition_type": "Attribute",
+                "attribute": "obesity",
+                "operator": "is not nil"
+              },
+              {
+                "condition_type": "Active Condition",
+                "codes": [
+                  {
+                    "system": "SNOMED-CT",
+                    "code": "59621000",
+                    "display": "Essential hypertension (disorder)"
+                  }
+                ]
+              }
+            ]
+          },
+          "distributions": [
+            {
+              "transition": "Assign_Fibrosis_Band",
+              "distribution": 0.55
+            },
+            {
+              "transition": "Terminal",
+              "distribution": 0.45
+            }
+          ]
+        },
+        {
+          "distributions": [
+            {
+              "transition": "Assign_Fibrosis_Band",
+              "distribution": 0.12
+            },
+            {
+              "transition": "Terminal",
+              "distribution": 0.88
+            }
+          ]
+        }
+      ]
+    },
+    "MASLD_Onset": {
+      "type": "ConditionOnset",
+      "target_encounter": "MASLD_Diagnosis_Encounter",
+      "assign_to_attribute": "masld",
+      "codes": [
+        {
+          "system": "SNOMED-CT",
+          "code": "197315008",
+          "display": "Non-alcoholic fatty liver disease (disorder)"
+        }
+      ],
+      "direct_transition": "MASLD_Diagnosis_Encounter",
+      "remarks": [
+        "NAFLD: low and indeterminate fibrosis bands."
+      ]
+    },
+    "Assign_Fibrosis_Band": {
+      "type": "Simple",
+      "distributed_transition": [
+        {
+          "transition": "Band_low",
+          "distribution": 0.7
+        },
+        {
+          "transition": "Band_indeterminate",
+          "distribution": 0.15
+        },
+        {
+          "transition": "Band_high",
+          "distribution": 0.1
+        },
+        {
+          "transition": "Band_cirrhosis",
+          "distribution": 0.05
+        }
+      ]
+    },
+    "Band_low": {
+      "type": "SetAttribute",
+      "attribute": "masld_fibrosis_band",
+      "value": "low",
+      "direct_transition": "MASLD_Onset"
+    },
+    "Band_indeterminate": {
+      "type": "SetAttribute",
+      "attribute": "masld_fibrosis_band",
+      "value": "indeterminate",
+      "direct_transition": "MASLD_Onset"
+    },
+    "Band_high": {
+      "type": "SetAttribute",
+      "attribute": "masld_fibrosis_band",
+      "value": "high",
+      "direct_transition": "NASH_Onset"
+    },
+    "Band_cirrhosis": {
+      "type": "SetAttribute",
+      "attribute": "masld_fibrosis_band",
+      "value": "cirrhosis",
+      "direct_transition": "NASH_Onset"
+    },
+    "MASLD_Diagnosis_Encounter": {
+      "type": "Encounter",
+      "encounter_class": "ambulatory",
+      "reason": "masld",
+      "codes": [
+        {
+          "system": "SNOMED-CT",
+          "code": "185347001",
+          "display": "Encounter for problem (procedure)"
+        }
+      ],
+      "direct_transition": "Abdominal_Ultrasound"
+    },
+    "Abdominal_Ultrasound": {
+      "type": "Procedure",
+      "reason": "masld",
+      "codes": [
+        {
+          "system": "SNOMED-CT",
+          "code": "426701000119108",
+          "display": "Ultrasonography of abdomen, right upper quadrant and epigastrium (procedure)"
+        }
+      ],
+      "duration": {
+        "low": 20,
+        "high": 40,
+        "unit": "minutes"
+      },
+      "direct_transition": "Labs_Dx"
+    },
+    "Labs_Dx": {
+      "type": "Simple",
+      "conditional_transition": [
+        {
+          "transition": "Labs_Dx_low",
+          "condition": {
+            "condition_type": "Attribute",
+            "attribute": "masld_fibrosis_band",
+            "operator": "==",
+            "value": "low"
+          }
+        },
+        {
+          "transition": "Labs_Dx_indeterminate",
+          "condition": {
+            "condition_type": "Attribute",
+            "attribute": "masld_fibrosis_band",
+            "operator": "==",
+            "value": "indeterminate"
+          }
+        },
+        {
+          "transition": "Labs_Dx_high",
+          "condition": {
+            "condition_type": "Attribute",
+            "attribute": "masld_fibrosis_band",
+            "operator": "==",
+            "value": "high"
+          }
+        },
+        {
+          "transition": "Labs_Dx_cirrhosis",
+          "condition": {
+            "condition_type": "Attribute",
+            "attribute": "masld_fibrosis_band",
+            "operator": "==",
+            "value": "cirrhosis"
+          }
+        },
+        {
+          "transition": "Labs_Dx_low"
+        }
+      ]
+    },
+    "Fibrosis_Dx_Check": {
+      "type": "Simple",
+      "conditional_transition": [
+        {
+          "transition": "Cirrhosis_Onset",
+          "condition": {
+            "condition_type": "Attribute",
+            "attribute": "masld_fibrosis_band",
+            "operator": "==",
+            "value": "cirrhosis"
+          }
+        },
+        {
+          "transition": "Fibrosis_Onset",
+          "condition": {
+            "condition_type": "Attribute",
+            "attribute": "masld_fibrosis_band",
+            "operator": "==",
+            "value": "high"
+          }
+        },
+        {
+          "transition": "Lifestyle_Careplan"
+        }
+      ]
+    },
+    "Fibrosis_Onset": {
+      "type": "ConditionOnset",
+      "target_encounter": "MASLD_Diagnosis_Encounter",
+      "assign_to_attribute": "masld_advanced",
+      "codes": [
+        {
+          "system": "SNOMED-CT",
+          "code": "62484002",
+          "display": "Hepatic fibrosis (disorder)"
+        }
+      ],
+      "direct_transition": "Hepatology_Referral"
+    },
+    "Cirrhosis_Onset": {
+      "type": "ConditionOnset",
+      "target_encounter": "MASLD_Diagnosis_Encounter",
+      "assign_to_attribute": "masld_advanced",
+      "codes": [
+        {
+          "system": "SNOMED-CT",
+          "code": "19943007",
+          "display": "Cirrhosis of liver (disorder)"
+        }
+      ],
+      "direct_transition": "Hepatology_Referral"
+    },
+    "Hepatology_Referral": {
+      "type": "Procedure",
+      "reason": "masld",
+      "codes": [
+        {
+          "system": "SNOMED-CT",
+          "code": "306206005",
+          "display": "Referral to service (procedure)"
+        }
+      ],
+      "remarks": [
+        "Generic referral code; swap for a hepatology-specific referral code if one is confirmed in Athena."
+      ],
+      "direct_transition": "Lifestyle_Careplan"
+    },
+    "Lifestyle_Careplan": {
+      "type": "CarePlanStart",
+      "reason": "masld",
+      "codes": [
+        {
+          "system": "SNOMED-CT",
+          "code": "718361005",
+          "display": "Weight management program (regime/therapy)"
+        }
+      ],
+      "activities": [
+        {
+          "system": "SNOMED-CT",
+          "code": "226234005",
+          "display": "Healthy diet (finding)"
+        },
+        {
+          "system": "SNOMED-CT",
+          "code": "183301007",
+          "display": "Physical exercises (regime/therapy)"
+        }
+      ],
+      "direct_transition": "End_Dx_Encounter"
+    },
+    "End_Dx_Encounter": {
+      "type": "EncounterEnd",
+      "direct_transition": "Followup_Delay"
+    },
+    "Followup_Delay": {
+      "type": "Simple",
+      "conditional_transition": [
+        {
+          "transition": "Delay_Low",
+          "condition": {
+            "condition_type": "Attribute",
+            "attribute": "masld_fibrosis_band",
+            "operator": "==",
+            "value": "low"
+          }
+        },
+        {
+          "transition": "Delay_Annual"
+        }
+      ]
+    },
+    "Delay_Low": {
+      "type": "Delay",
+      "range": {
+        "low": 2,
+        "high": 3,
+        "unit": "years"
+      },
+      "direct_transition": "Followup_Encounter"
+    },
+    "Delay_Annual": {
+      "type": "Delay",
+      "range": {
+        "low": 10,
+        "high": 14,
+        "unit": "months"
+      },
+      "direct_transition": "Followup_Encounter"
+    },
+    "Followup_Encounter": {
+      "type": "Encounter",
+      "encounter_class": "ambulatory",
+      "reason": "masld",
+      "codes": [
+        {
+          "system": "SNOMED-CT",
+          "code": "185349003",
+          "display": "Encounter for check up (procedure)"
+        }
+      ],
+      "direct_transition": "Labs_FU"
+    },
+    "Labs_FU": {
+      "type": "Simple",
+      "conditional_transition": [
+        {
+          "transition": "Labs_FU_low",
+          "condition": {
+            "condition_type": "Attribute",
+            "attribute": "masld_fibrosis_band",
+            "operator": "==",
+            "value": "low"
+          }
+        },
+        {
+          "transition": "Labs_FU_indeterminate",
+          "condition": {
+            "condition_type": "Attribute",
+            "attribute": "masld_fibrosis_band",
+            "operator": "==",
+            "value": "indeterminate"
+          }
+        },
+        {
+          "transition": "Labs_FU_high",
+          "condition": {
+            "condition_type": "Attribute",
+            "attribute": "masld_fibrosis_band",
+            "operator": "==",
+            "value": "high"
+          }
+        },
+        {
+          "transition": "Labs_FU_cirrhosis",
+          "condition": {
+            "condition_type": "Attribute",
+            "attribute": "masld_fibrosis_band",
+            "operator": "==",
+            "value": "cirrhosis"
+          }
+        },
+        {
+          "transition": "Labs_FU_low"
+        }
+      ]
+    },
+    "End_Followup": {
+      "type": "EncounterEnd",
+      "direct_transition": "Progression_Check"
+    },
+    "Progression_Check": {
+      "type": "Simple",
+      "conditional_transition": [
+        {
+          "transition": "Maybe_Progress_low",
+          "condition": {
+            "condition_type": "Attribute",
+            "attribute": "masld_fibrosis_band",
+            "operator": "==",
+            "value": "low"
+          }
+        },
+        {
+          "transition": "Maybe_Progress_indeterminate",
+          "condition": {
+            "condition_type": "Attribute",
+            "attribute": "masld_fibrosis_band",
+            "operator": "==",
+            "value": "indeterminate"
+          }
+        },
+        {
+          "transition": "Maybe_Progress_high",
+          "condition": {
+            "condition_type": "Attribute",
+            "attribute": "masld_fibrosis_band",
+            "operator": "==",
+            "value": "high"
+          }
+        },
+        {
+          "transition": "Followup_Delay"
+        }
+      ]
+    },
+    "Maybe_Progress_low": {
+      "type": "Simple",
+      "distributed_transition": [
+        {
+          "transition": "Progress_to_indeterminate",
+          "distribution": 0.02
+        },
+        {
+          "transition": "Followup_Delay",
+          "distribution": 0.98
+        }
+      ]
+    },
+    "Progress_to_indeterminate": {
+      "type": "SetAttribute",
+      "attribute": "masld_fibrosis_band",
+      "value": "indeterminate",
+      "direct_transition": "Followup_Delay"
+    },
+    "Maybe_Progress_indeterminate": {
+      "type": "Simple",
+      "distributed_transition": [
+        {
+          "transition": "Progress_to_high",
+          "distribution": 0.02
+        },
+        {
+          "transition": "Followup_Delay",
+          "distribution": 0.98
+        }
+      ]
+    },
+    "Progress_to_high": {
+      "type": "SetAttribute",
+      "attribute": "masld_fibrosis_band",
+      "value": "high",
+      "direct_transition": "End_NAFLD"
+    },
+    "Maybe_Progress_high": {
+      "type": "Simple",
+      "distributed_transition": [
+        {
+          "transition": "Progress_to_cirrhosis",
+          "distribution": 0.02
+        },
+        {
+          "transition": "Followup_Delay",
+          "distribution": 0.98
+        }
+      ]
+    },
+    "Progress_to_cirrhosis": {
+      "type": "SetAttribute",
+      "attribute": "masld_fibrosis_band",
+      "value": "cirrhosis",
+      "direct_transition": "Progressed_Cirrhosis"
+    },
+    "Progressed_Fibrosis": {
+      "type": "ConditionOnset",
+      "codes": [
+        {
+          "system": "SNOMED-CT",
+          "code": "62484002",
+          "display": "Hepatic fibrosis (disorder)"
+        }
+      ],
+      "assign_to_attribute": "masld_advanced",
+      "direct_transition": "Followup_Delay"
+    },
+    "Progressed_Cirrhosis": {
+      "type": "ConditionOnset",
+      "codes": [
+        {
+          "system": "SNOMED-CT",
+          "code": "19943007",
+          "display": "Cirrhosis of liver (disorder)"
+        }
+      ],
+      "assign_to_attribute": "masld_advanced",
+      "direct_transition": "Followup_Delay"
+    },
+    "Terminal": {
+      "type": "Terminal"
+    },
+    "NASH_Onset": {
+      "type": "ConditionOnset",
+      "remarks": [
+        "NASH: high and cirrhosis fibrosis bands."
+      ],
+      "target_encounter": "MASLD_Diagnosis_Encounter",
+      "assign_to_attribute": "masld",
+      "codes": [
+        {
+          "system": "SNOMED-CT",
+          "code": "442685003",
+          "display": "Non-alcoholic steatohepatitis (disorder)"
+        }
+      ],
+      "direct_transition": "MASLD_Diagnosis_Encounter"
+    },
+    "End_NAFLD": {
+      "type": "ConditionEnd",
+      "referenced_by_attribute": "masld",
+      "direct_transition": "Progressed_NASH"
+    },
+    "Progressed_NASH": {
+      "type": "ConditionOnset",
+      "assign_to_attribute": "masld",
+      "codes": [
+        {
+          "system": "SNOMED-CT",
+          "code": "442685003",
+          "display": "Non-alcoholic steatohepatitis (disorder)"
+        }
+      ],
+      "direct_transition": "Progressed_Fibrosis"
+    },
+    "Labs_Dx_AST_low_under50": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1920-8",
+          "display": "Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 18,
+        "high": 28
+      },
+      "direct_transition": "Labs_Dx_ALT_low_under50"
+    },
+    "Labs_Dx_ALT_low_under50": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1742-6",
+          "display": "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 25,
+        "high": 45
+      },
+      "direct_transition": "Labs_Dx_PLT_low_under50"
+    },
+    "Labs_Dx_PLT_low_under50": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "10*3/uL",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "777-3",
+          "display": "Platelets [#/volume] in Blood by Automated count"
+        }
+      ],
+      "range": {
+        "low": 220,
+        "high": 340
+      },
+      "direct_transition": "Fibrosis_Dx_Check"
+    },
+    "Labs_Dx_AST_low_50to64": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1920-8",
+          "display": "Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 18,
+        "high": 26
+      },
+      "direct_transition": "Labs_Dx_ALT_low_50to64"
+    },
+    "Labs_Dx_ALT_low_50to64": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1742-6",
+          "display": "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 30,
+        "high": 45
+      },
+      "direct_transition": "Labs_Dx_PLT_low_50to64"
+    },
+    "Labs_Dx_PLT_low_50to64": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "10*3/uL",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "777-3",
+          "display": "Platelets [#/volume] in Blood by Automated count"
+        }
+      ],
+      "range": {
+        "low": 240,
+        "high": 350
+      },
+      "direct_transition": "Fibrosis_Dx_Check"
+    },
+    "Labs_Dx_AST_low_65plus": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1920-8",
+          "display": "Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 18,
+        "high": 26
+      },
+      "direct_transition": "Labs_Dx_ALT_low_65plus"
+    },
+    "Labs_Dx_ALT_low_65plus": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1742-6",
+          "display": "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 25,
+        "high": 40
+      },
+      "direct_transition": "Labs_Dx_PLT_low_65plus"
+    },
+    "Labs_Dx_PLT_low_65plus": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "10*3/uL",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "777-3",
+          "display": "Platelets [#/volume] in Blood by Automated count"
+        }
+      ],
+      "range": {
+        "low": 220,
+        "high": 330
+      },
+      "direct_transition": "Fibrosis_Dx_Check"
+    },
+    "Labs_Dx_low": {
+      "type": "Simple",
+      "remarks": [
+        "Route low-band labs by age group (<50, 50-64, 65+) so FIB-4 matches the band."
+      ],
+      "conditional_transition": [
+        {
+          "transition": "Labs_Dx_AST_low_under50",
+          "condition": {
+            "condition_type": "Age",
+            "operator": "<",
+            "quantity": 50,
+            "unit": "years"
+          }
+        },
+        {
+          "transition": "Labs_Dx_AST_low_50to64",
+          "condition": {
+            "condition_type": "Age",
+            "operator": "<",
+            "quantity": 65,
+            "unit": "years"
+          }
+        },
+        {
+          "transition": "Labs_Dx_AST_low_65plus"
+        }
+      ]
+    },
+    "Labs_Dx_AST_indeterminate_under50": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1920-8",
+          "display": "Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 46,
+        "high": 52
+      },
+      "direct_transition": "Labs_Dx_ALT_indeterminate_under50"
+    },
+    "Labs_Dx_ALT_indeterminate_under50": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1742-6",
+          "display": "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 38,
+        "high": 44
+      },
+      "direct_transition": "Labs_Dx_PLT_indeterminate_under50"
+    },
+    "Labs_Dx_PLT_indeterminate_under50": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "10*3/uL",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "777-3",
+          "display": "Platelets [#/volume] in Blood by Automated count"
+        }
+      ],
+      "range": {
+        "low": 160,
+        "high": 172
+      },
+      "direct_transition": "Fibrosis_Dx_Check"
+    },
+    "Labs_Dx_AST_indeterminate_50to64": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1920-8",
+          "display": "Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 40,
+        "high": 46
+      },
+      "direct_transition": "Labs_Dx_ALT_indeterminate_50to64"
+    },
+    "Labs_Dx_ALT_indeterminate_50to64": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1742-6",
+          "display": "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 40,
+        "high": 46
+      },
+      "direct_transition": "Labs_Dx_PLT_indeterminate_50to64"
+    },
+    "Labs_Dx_PLT_indeterminate_50to64": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "10*3/uL",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "777-3",
+          "display": "Platelets [#/volume] in Blood by Automated count"
+        }
+      ],
+      "range": {
+        "low": 175,
+        "high": 190
+      },
+      "direct_transition": "Fibrosis_Dx_Check"
+    },
+    "Labs_Dx_AST_indeterminate_65plus": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1920-8",
+          "display": "Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 40,
+        "high": 43
+      },
+      "direct_transition": "Labs_Dx_ALT_indeterminate_65plus"
+    },
+    "Labs_Dx_ALT_indeterminate_65plus": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1742-6",
+          "display": "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 38,
+        "high": 42
+      },
+      "direct_transition": "Labs_Dx_PLT_indeterminate_65plus"
+    },
+    "Labs_Dx_PLT_indeterminate_65plus": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "10*3/uL",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "777-3",
+          "display": "Platelets [#/volume] in Blood by Automated count"
+        }
+      ],
+      "range": {
+        "low": 192,
+        "high": 200
+      },
+      "direct_transition": "Fibrosis_Dx_Check"
+    },
+    "Labs_Dx_indeterminate": {
+      "type": "Simple",
+      "remarks": [
+        "Route indeterminate-band labs by age group (<50, 50-64, 65+) so FIB-4 matches the band."
+      ],
+      "conditional_transition": [
+        {
+          "transition": "Labs_Dx_AST_indeterminate_under50",
+          "condition": {
+            "condition_type": "Age",
+            "operator": "<",
+            "quantity": 50,
+            "unit": "years"
+          }
+        },
+        {
+          "transition": "Labs_Dx_AST_indeterminate_50to64",
+          "condition": {
+            "condition_type": "Age",
+            "operator": "<",
+            "quantity": 65,
+            "unit": "years"
+          }
+        },
+        {
+          "transition": "Labs_Dx_AST_indeterminate_65plus"
+        }
+      ]
+    },
+    "Labs_Dx_AST_high_under50": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1920-8",
+          "display": "Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 85,
+        "high": 110
+      },
+      "direct_transition": "Labs_Dx_ALT_high_under50"
+    },
+    "Labs_Dx_ALT_high_under50": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1742-6",
+          "display": "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 45,
+        "high": 60
+      },
+      "direct_transition": "Labs_Dx_PLT_high_under50"
+    },
+    "Labs_Dx_PLT_high_under50": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "10*3/uL",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "777-3",
+          "display": "Platelets [#/volume] in Blood by Automated count"
+        }
+      ],
+      "range": {
+        "low": 90,
+        "high": 115
+      },
+      "direct_transition": "Fibrosis_Dx_Check"
+    },
+    "Labs_Dx_AST_high_50to64": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1920-8",
+          "display": "Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 65,
+        "high": 90
+      },
+      "direct_transition": "Labs_Dx_ALT_high_50to64"
+    },
+    "Labs_Dx_ALT_high_50to64": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1742-6",
+          "display": "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 45,
+        "high": 65
+      },
+      "direct_transition": "Labs_Dx_PLT_high_50to64"
+    },
+    "Labs_Dx_PLT_high_50to64": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "10*3/uL",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "777-3",
+          "display": "Platelets [#/volume] in Blood by Automated count"
+        }
+      ],
+      "range": {
+        "low": 105,
+        "high": 135
+      },
+      "direct_transition": "Fibrosis_Dx_Check"
+    },
+    "Labs_Dx_AST_high_65plus": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1920-8",
+          "display": "Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 55,
+        "high": 85
+      },
+      "direct_transition": "Labs_Dx_ALT_high_65plus"
+    },
+    "Labs_Dx_ALT_high_65plus": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1742-6",
+          "display": "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 45,
+        "high": 65
+      },
+      "direct_transition": "Labs_Dx_PLT_high_65plus"
+    },
+    "Labs_Dx_PLT_high_65plus": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "10*3/uL",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "777-3",
+          "display": "Platelets [#/volume] in Blood by Automated count"
+        }
+      ],
+      "range": {
+        "low": 115,
+        "high": 150
+      },
+      "direct_transition": "Fibrosis_Dx_Check"
+    },
+    "Labs_Dx_high": {
+      "type": "Simple",
+      "remarks": [
+        "Route high-band labs by age group (<50, 50-64, 65+) so FIB-4 matches the band."
+      ],
+      "conditional_transition": [
+        {
+          "transition": "Labs_Dx_AST_high_under50",
+          "condition": {
+            "condition_type": "Age",
+            "operator": "<",
+            "quantity": 50,
+            "unit": "years"
+          }
+        },
+        {
+          "transition": "Labs_Dx_AST_high_50to64",
+          "condition": {
+            "condition_type": "Age",
+            "operator": "<",
+            "quantity": 65,
+            "unit": "years"
+          }
+        },
+        {
+          "transition": "Labs_Dx_AST_high_65plus"
+        }
+      ]
+    },
+    "Labs_Dx_AST_cirrhosis_under50": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1920-8",
+          "display": "Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 95,
+        "high": 130
+      },
+      "direct_transition": "Labs_Dx_ALT_cirrhosis_under50"
+    },
+    "Labs_Dx_ALT_cirrhosis_under50": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1742-6",
+          "display": "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 35,
+        "high": 55
+      },
+      "direct_transition": "Labs_Dx_PLT_cirrhosis_under50"
+    },
+    "Labs_Dx_PLT_cirrhosis_under50": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "10*3/uL",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "777-3",
+          "display": "Platelets [#/volume] in Blood by Automated count"
+        }
+      ],
+      "range": {
+        "low": 65,
+        "high": 95
+      },
+      "direct_transition": "Fibrosis_Dx_Check"
+    },
+    "Labs_Dx_AST_cirrhosis_50to64": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1920-8",
+          "display": "Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 75,
+        "high": 110
+      },
+      "direct_transition": "Labs_Dx_ALT_cirrhosis_50to64"
+    },
+    "Labs_Dx_ALT_cirrhosis_50to64": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1742-6",
+          "display": "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 35,
+        "high": 55
+      },
+      "direct_transition": "Labs_Dx_PLT_cirrhosis_50to64"
+    },
+    "Labs_Dx_PLT_cirrhosis_50to64": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "10*3/uL",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "777-3",
+          "display": "Platelets [#/volume] in Blood by Automated count"
+        }
+      ],
+      "range": {
+        "low": 70,
+        "high": 100
+      },
+      "direct_transition": "Fibrosis_Dx_Check"
+    },
+    "Labs_Dx_AST_cirrhosis_65plus": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1920-8",
+          "display": "Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 60,
+        "high": 100
+      },
+      "direct_transition": "Labs_Dx_ALT_cirrhosis_65plus"
+    },
+    "Labs_Dx_ALT_cirrhosis_65plus": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1742-6",
+          "display": "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 35,
+        "high": 55
+      },
+      "direct_transition": "Labs_Dx_PLT_cirrhosis_65plus"
+    },
+    "Labs_Dx_PLT_cirrhosis_65plus": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "10*3/uL",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "777-3",
+          "display": "Platelets [#/volume] in Blood by Automated count"
+        }
+      ],
+      "range": {
+        "low": 75,
+        "high": 110
+      },
+      "direct_transition": "Fibrosis_Dx_Check"
+    },
+    "Labs_Dx_cirrhosis": {
+      "type": "Simple",
+      "remarks": [
+        "Route cirrhosis-band labs by age group (<50, 50-64, 65+) so FIB-4 matches the band."
+      ],
+      "conditional_transition": [
+        {
+          "transition": "Labs_Dx_AST_cirrhosis_under50",
+          "condition": {
+            "condition_type": "Age",
+            "operator": "<",
+            "quantity": 50,
+            "unit": "years"
+          }
+        },
+        {
+          "transition": "Labs_Dx_AST_cirrhosis_50to64",
+          "condition": {
+            "condition_type": "Age",
+            "operator": "<",
+            "quantity": 65,
+            "unit": "years"
+          }
+        },
+        {
+          "transition": "Labs_Dx_AST_cirrhosis_65plus"
+        }
+      ]
+    },
+    "Labs_FU_AST_low_under50": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1920-8",
+          "display": "Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 18,
+        "high": 28
+      },
+      "direct_transition": "Labs_FU_ALT_low_under50"
+    },
+    "Labs_FU_ALT_low_under50": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1742-6",
+          "display": "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 25,
+        "high": 45
+      },
+      "direct_transition": "Labs_FU_PLT_low_under50"
+    },
+    "Labs_FU_PLT_low_under50": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "10*3/uL",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "777-3",
+          "display": "Platelets [#/volume] in Blood by Automated count"
+        }
+      ],
+      "range": {
+        "low": 220,
+        "high": 340
+      },
+      "direct_transition": "End_Followup"
+    },
+    "Labs_FU_AST_low_50to64": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1920-8",
+          "display": "Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 18,
+        "high": 26
+      },
+      "direct_transition": "Labs_FU_ALT_low_50to64"
+    },
+    "Labs_FU_ALT_low_50to64": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1742-6",
+          "display": "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 30,
+        "high": 45
+      },
+      "direct_transition": "Labs_FU_PLT_low_50to64"
+    },
+    "Labs_FU_PLT_low_50to64": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "10*3/uL",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "777-3",
+          "display": "Platelets [#/volume] in Blood by Automated count"
+        }
+      ],
+      "range": {
+        "low": 240,
+        "high": 350
+      },
+      "direct_transition": "End_Followup"
+    },
+    "Labs_FU_AST_low_65plus": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1920-8",
+          "display": "Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 18,
+        "high": 26
+      },
+      "direct_transition": "Labs_FU_ALT_low_65plus"
+    },
+    "Labs_FU_ALT_low_65plus": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1742-6",
+          "display": "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 25,
+        "high": 40
+      },
+      "direct_transition": "Labs_FU_PLT_low_65plus"
+    },
+    "Labs_FU_PLT_low_65plus": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "10*3/uL",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "777-3",
+          "display": "Platelets [#/volume] in Blood by Automated count"
+        }
+      ],
+      "range": {
+        "low": 220,
+        "high": 330
+      },
+      "direct_transition": "End_Followup"
+    },
+    "Labs_FU_low": {
+      "type": "Simple",
+      "remarks": [
+        "Route low-band labs by age group (<50, 50-64, 65+) so FIB-4 matches the band."
+      ],
+      "conditional_transition": [
+        {
+          "transition": "Labs_FU_AST_low_under50",
+          "condition": {
+            "condition_type": "Age",
+            "operator": "<",
+            "quantity": 50,
+            "unit": "years"
+          }
+        },
+        {
+          "transition": "Labs_FU_AST_low_50to64",
+          "condition": {
+            "condition_type": "Age",
+            "operator": "<",
+            "quantity": 65,
+            "unit": "years"
+          }
+        },
+        {
+          "transition": "Labs_FU_AST_low_65plus"
+        }
+      ]
+    },
+    "Labs_FU_AST_indeterminate_under50": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1920-8",
+          "display": "Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 46,
+        "high": 52
+      },
+      "direct_transition": "Labs_FU_ALT_indeterminate_under50"
+    },
+    "Labs_FU_ALT_indeterminate_under50": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1742-6",
+          "display": "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 38,
+        "high": 44
+      },
+      "direct_transition": "Labs_FU_PLT_indeterminate_under50"
+    },
+    "Labs_FU_PLT_indeterminate_under50": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "10*3/uL",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "777-3",
+          "display": "Platelets [#/volume] in Blood by Automated count"
+        }
+      ],
+      "range": {
+        "low": 160,
+        "high": 172
+      },
+      "direct_transition": "End_Followup"
+    },
+    "Labs_FU_AST_indeterminate_50to64": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1920-8",
+          "display": "Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 40,
+        "high": 46
+      },
+      "direct_transition": "Labs_FU_ALT_indeterminate_50to64"
+    },
+    "Labs_FU_ALT_indeterminate_50to64": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1742-6",
+          "display": "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 40,
+        "high": 46
+      },
+      "direct_transition": "Labs_FU_PLT_indeterminate_50to64"
+    },
+    "Labs_FU_PLT_indeterminate_50to64": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "10*3/uL",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "777-3",
+          "display": "Platelets [#/volume] in Blood by Automated count"
+        }
+      ],
+      "range": {
+        "low": 175,
+        "high": 190
+      },
+      "direct_transition": "End_Followup"
+    },
+    "Labs_FU_AST_indeterminate_65plus": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1920-8",
+          "display": "Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 40,
+        "high": 43
+      },
+      "direct_transition": "Labs_FU_ALT_indeterminate_65plus"
+    },
+    "Labs_FU_ALT_indeterminate_65plus": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1742-6",
+          "display": "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 38,
+        "high": 42
+      },
+      "direct_transition": "Labs_FU_PLT_indeterminate_65plus"
+    },
+    "Labs_FU_PLT_indeterminate_65plus": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "10*3/uL",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "777-3",
+          "display": "Platelets [#/volume] in Blood by Automated count"
+        }
+      ],
+      "range": {
+        "low": 192,
+        "high": 200
+      },
+      "direct_transition": "End_Followup"
+    },
+    "Labs_FU_indeterminate": {
+      "type": "Simple",
+      "remarks": [
+        "Route indeterminate-band labs by age group (<50, 50-64, 65+) so FIB-4 matches the band."
+      ],
+      "conditional_transition": [
+        {
+          "transition": "Labs_FU_AST_indeterminate_under50",
+          "condition": {
+            "condition_type": "Age",
+            "operator": "<",
+            "quantity": 50,
+            "unit": "years"
+          }
+        },
+        {
+          "transition": "Labs_FU_AST_indeterminate_50to64",
+          "condition": {
+            "condition_type": "Age",
+            "operator": "<",
+            "quantity": 65,
+            "unit": "years"
+          }
+        },
+        {
+          "transition": "Labs_FU_AST_indeterminate_65plus"
+        }
+      ]
+    },
+    "Labs_FU_AST_high_under50": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1920-8",
+          "display": "Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 85,
+        "high": 110
+      },
+      "direct_transition": "Labs_FU_ALT_high_under50"
+    },
+    "Labs_FU_ALT_high_under50": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1742-6",
+          "display": "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 45,
+        "high": 60
+      },
+      "direct_transition": "Labs_FU_PLT_high_under50"
+    },
+    "Labs_FU_PLT_high_under50": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "10*3/uL",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "777-3",
+          "display": "Platelets [#/volume] in Blood by Automated count"
+        }
+      ],
+      "range": {
+        "low": 90,
+        "high": 115
+      },
+      "direct_transition": "End_Followup"
+    },
+    "Labs_FU_AST_high_50to64": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1920-8",
+          "display": "Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 65,
+        "high": 90
+      },
+      "direct_transition": "Labs_FU_ALT_high_50to64"
+    },
+    "Labs_FU_ALT_high_50to64": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1742-6",
+          "display": "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 45,
+        "high": 65
+      },
+      "direct_transition": "Labs_FU_PLT_high_50to64"
+    },
+    "Labs_FU_PLT_high_50to64": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "10*3/uL",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "777-3",
+          "display": "Platelets [#/volume] in Blood by Automated count"
+        }
+      ],
+      "range": {
+        "low": 105,
+        "high": 135
+      },
+      "direct_transition": "End_Followup"
+    },
+    "Labs_FU_AST_high_65plus": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1920-8",
+          "display": "Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 55,
+        "high": 85
+      },
+      "direct_transition": "Labs_FU_ALT_high_65plus"
+    },
+    "Labs_FU_ALT_high_65plus": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1742-6",
+          "display": "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 45,
+        "high": 65
+      },
+      "direct_transition": "Labs_FU_PLT_high_65plus"
+    },
+    "Labs_FU_PLT_high_65plus": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "10*3/uL",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "777-3",
+          "display": "Platelets [#/volume] in Blood by Automated count"
+        }
+      ],
+      "range": {
+        "low": 115,
+        "high": 150
+      },
+      "direct_transition": "End_Followup"
+    },
+    "Labs_FU_high": {
+      "type": "Simple",
+      "remarks": [
+        "Route high-band labs by age group (<50, 50-64, 65+) so FIB-4 matches the band."
+      ],
+      "conditional_transition": [
+        {
+          "transition": "Labs_FU_AST_high_under50",
+          "condition": {
+            "condition_type": "Age",
+            "operator": "<",
+            "quantity": 50,
+            "unit": "years"
+          }
+        },
+        {
+          "transition": "Labs_FU_AST_high_50to64",
+          "condition": {
+            "condition_type": "Age",
+            "operator": "<",
+            "quantity": 65,
+            "unit": "years"
+          }
+        },
+        {
+          "transition": "Labs_FU_AST_high_65plus"
+        }
+      ]
+    },
+    "Labs_FU_AST_cirrhosis_under50": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1920-8",
+          "display": "Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 95,
+        "high": 130
+      },
+      "direct_transition": "Labs_FU_ALT_cirrhosis_under50"
+    },
+    "Labs_FU_ALT_cirrhosis_under50": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1742-6",
+          "display": "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 35,
+        "high": 55
+      },
+      "direct_transition": "Labs_FU_PLT_cirrhosis_under50"
+    },
+    "Labs_FU_PLT_cirrhosis_under50": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "10*3/uL",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "777-3",
+          "display": "Platelets [#/volume] in Blood by Automated count"
+        }
+      ],
+      "range": {
+        "low": 65,
+        "high": 95
+      },
+      "direct_transition": "End_Followup"
+    },
+    "Labs_FU_AST_cirrhosis_50to64": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1920-8",
+          "display": "Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 75,
+        "high": 110
+      },
+      "direct_transition": "Labs_FU_ALT_cirrhosis_50to64"
+    },
+    "Labs_FU_ALT_cirrhosis_50to64": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1742-6",
+          "display": "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 35,
+        "high": 55
+      },
+      "direct_transition": "Labs_FU_PLT_cirrhosis_50to64"
+    },
+    "Labs_FU_PLT_cirrhosis_50to64": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "10*3/uL",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "777-3",
+          "display": "Platelets [#/volume] in Blood by Automated count"
+        }
+      ],
+      "range": {
+        "low": 70,
+        "high": 100
+      },
+      "direct_transition": "End_Followup"
+    },
+    "Labs_FU_AST_cirrhosis_65plus": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1920-8",
+          "display": "Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 60,
+        "high": 100
+      },
+      "direct_transition": "Labs_FU_ALT_cirrhosis_65plus"
+    },
+    "Labs_FU_ALT_cirrhosis_65plus": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "U/L",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "1742-6",
+          "display": "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        }
+      ],
+      "range": {
+        "low": 35,
+        "high": 55
+      },
+      "direct_transition": "Labs_FU_PLT_cirrhosis_65plus"
+    },
+    "Labs_FU_PLT_cirrhosis_65plus": {
+      "type": "Observation",
+      "category": "laboratory",
+      "unit": "10*3/uL",
+      "codes": [
+        {
+          "system": "LOINC",
+          "code": "777-3",
+          "display": "Platelets [#/volume] in Blood by Automated count"
+        }
+      ],
+      "range": {
+        "low": 75,
+        "high": 110
+      },
+      "direct_transition": "End_Followup"
+    },
+    "Labs_FU_cirrhosis": {
+      "type": "Simple",
+      "remarks": [
+        "Route cirrhosis-band labs by age group (<50, 50-64, 65+) so FIB-4 matches the band."
+      ],
+      "conditional_transition": [
+        {
+          "transition": "Labs_FU_AST_cirrhosis_under50",
+          "condition": {
+            "condition_type": "Age",
+            "operator": "<",
+            "quantity": 50,
+            "unit": "years"
+          }
+        },
+        {
+          "transition": "Labs_FU_AST_cirrhosis_50to64",
+          "condition": {
+            "condition_type": "Age",
+            "operator": "<",
+            "quantity": 65,
+            "unit": "years"
+          }
+        },
+        {
+          "transition": "Labs_FU_AST_cirrhosis_65plus"
+        }
+      ]
+    }
+  }
+}

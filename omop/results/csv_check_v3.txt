@@ -1,0 +1,8 @@
+[v3] Q1 active_adults=307 at_risk=146 pct=47.6
+[v3] Q2 {'1 Low': 114, '2 Indeterminate': 17, '3 High': 15}
+[v3] Q3 ('Female', '18-39') active,at_risk,missing,low,indet,high = [35, 5, 0, 5, 0, 0]
+[v3] Q3 ('Female', '40-64') active,at_risk,missing,low,indet,high = [83, 39, 0, 29, 7, 3]
+[v3] Q3 ('Female', '65+') active,at_risk,missing,low,indet,high = [38, 30, 0, 25, 2, 3]
+[v3] Q3 ('Male', '18-39') active,at_risk,missing,low,indet,high = [34, 1, 0, 1, 0, 0]
+[v3] Q3 ('Male', '40-64') active,at_risk,missing,low,indet,high = [74, 35, 0, 27, 4, 4]
+[v3] Q3 ('Male', '65+') active,at_risk,missing,low,indet,high = [43, 36, 0, 27, 4, 5]
